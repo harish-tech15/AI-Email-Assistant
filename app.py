@@ -1,14 +1,29 @@
-app_code = r'''
 import streamlit as st
 from google import genai
-from google.colab import userdata
 
-# -----------------------------
-# Gemini Setup
-# -----------------------------
-api_key = userdata.get("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key)
+# --------------------------------
+# Page Configuration
+# --------------------------------
+st.set_page_config(
+    page_title="AI Email Assistant",
+    page_icon="📧",
+    layout="wide"
+)
 
+# --------------------------------
+# Gemini API Configuration
+# --------------------------------
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+    client = genai.Client(api_key=api_key)
+except Exception:
+    st.error("Gemini API key is not configured.")
+    st.stop()
+
+
+# --------------------------------
+# Available Gemini Models
+# --------------------------------
 MODELS = [
     "gemini-3.6-flash",
     "gemini-3.5-flash",
@@ -17,10 +32,10 @@ MODELS = [
 ]
 
 
-# -----------------------------
+# --------------------------------
 # AI Email Function
-# -----------------------------
-def email_ai(task, text, tone="Professional", length="Medium"):
+# --------------------------------
+def email_ai(task, text, tone, length):
 
     prompt = f"""
 You are an AI Email Assistant.
@@ -50,6 +65,7 @@ Instructions:
 
     for model in MODELS:
         try:
+
             response = client.models.generate_content(
                 model=model,
                 contents=prompt
@@ -60,20 +76,23 @@ Instructions:
 
         except Exception as e:
             last_error = e
+            continue
 
-    return f"AI service is temporarily unavailable.\n\nError: {last_error}"
+    return f"""
+AI service is temporarily unavailable.
+
+Please try again after some time.
+
+Error:
+{last_error}
+"""
 
 
-# -----------------------------
-# Streamlit UI
-# -----------------------------
-st.set_page_config(
-    page_title="AI Email Assistant",
-    page_icon="📧",
-    layout="wide"
-)
-
+# --------------------------------
+# Header
+# --------------------------------
 st.title("📧 AI Email Assistant")
+
 st.write(
     "Generate, rewrite, summarize, and reply to emails using Generative AI."
 )
@@ -81,9 +100,9 @@ st.write(
 st.divider()
 
 
-# -----------------------------
+# --------------------------------
 # Sidebar
-# -----------------------------
+# --------------------------------
 st.sidebar.header("⚙️ Email Settings")
 
 task = st.sidebar.selectbox(
@@ -117,28 +136,37 @@ length = st.sidebar.selectbox(
 )
 
 
-# -----------------------------
-# Main Input
-# -----------------------------
+# --------------------------------
+# User Input
+# --------------------------------
 st.subheader("📝 Email Content")
 
 email_text = st.text_area(
     "Enter your email request or email content:",
     height=220,
-    placeholder="Example: I attended an interview yesterday and want to ask HR about the result and next steps."
+    placeholder=(
+        "Example: I attended an interview yesterday "
+        "and want to ask HR about the result and next steps."
+    )
 )
 
 
-# -----------------------------
+# --------------------------------
 # Generate Button
-# -----------------------------
+# --------------------------------
 if st.button("✨ Generate with AI", type="primary"):
 
     if not email_text.strip():
-        st.warning("Please enter some email content first.")
+
+        st.warning(
+            "Please enter some email content first."
+        )
 
     else:
-        with st.spinner("AI is processing your request..."):
+
+        with st.spinner(
+            "AI is processing your request..."
+        ):
 
             result = email_ai(
                 task=task,
@@ -147,7 +175,9 @@ if st.button("✨ Generate with AI", type="primary"):
                 length=length
             )
 
-        st.success("Email generated successfully!")
+        st.success(
+            "AI response generated successfully!"
+        )
 
         st.subheader("🤖 AI Result")
 
@@ -165,17 +195,11 @@ if st.button("✨ Generate with AI", type="primary"):
         )
 
 
-# -----------------------------
+# --------------------------------
 # Footer
-# -----------------------------
+# --------------------------------
 st.divider()
 
 st.caption(
     "AI Email Assistant | Python • Gemini • Streamlit • Generative AI"
 )
-'''
-
-with open("/content/AI-Email-Assistant/app.py", "w") as f:
-    f.write(app_code)
-
-print("✅ app.py created successfully!")
