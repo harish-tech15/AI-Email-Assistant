@@ -1,108 +1,120 @@
 import streamlit as st
 from google import genai
 
-# --------------------------------
-# Page Configuration
-# --------------------------------
+
+# =========================================================
+# PAGE CONFIGURATION
+# =========================================================
+
 st.set_page_config(
     page_title="AI Email Assistant",
     page_icon="📧",
     layout="wide"
 )
 
-# --------------------------------
-# Gemini API Configuration
-# --------------------------------
+
+# =========================================================
+# GEMINI API SETUP
+# =========================================================
+
 try:
-    api_key = st.secrets["GEMINI_API_KEY"]
-    client = genai.Client(api_key=api_key)
-except Exception:
-    st.error("Gemini API key is not configured.")
+    api_key = st.secrets["GEMINI_API_KEY"].strip()
+
+    if not api_key:
+        st.error("GEMINI_API_KEY is empty.")
+        st.stop()
+
+    client = genai.Client(
+        api_key=api_key
+    )
+
+except KeyError:
+    st.error(
+        "GEMINI_API_KEY is not configured in Streamlit Secrets."
+    )
+    st.stop()
+
+except Exception as e:
+    st.error(
+        f"Gemini configuration error: {e}"
+    )
     st.stop()
 
 
-# --------------------------------
-# Available Gemini Models
-# --------------------------------
-MODELS = [
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3-flash-preview",
-    "gemini-flash-latest"
-]
+# =========================================================
+# GEMINI MODEL
+# =========================================================
+
+MODEL_NAME = "gemini-3.6-flash"
 
 
-# --------------------------------
-# AI Email Function
-# --------------------------------
-def email_ai(task, text, tone, length):
+# =========================================================
+# AI EMAIL FUNCTION
+# =========================================================
+
+def email_ai(task, email_text, tone, length):
 
     prompt = f"""
 You are an AI Email Assistant.
 
-Task:
+Your job is to help users write clear, professional,
+natural, and useful emails.
+
+TASK:
 {task}
 
-Tone:
+TONE:
 {tone}
 
-Length:
+LENGTH:
 {length}
 
-User Content:
-{text}
+USER CONTENT:
+{email_text}
 
-Instructions:
-- Write natural and professional English.
-- Do not invent important information.
-- Keep the response clear and useful.
-- If generating an email, include:
-  SUBJECT:
-  BODY:
+RULES:
+
+1. Understand the user's request carefully.
+2. Do not invent important facts.
+3. Keep the response natural and professional.
+4. Use correct English.
+5. If the task is generating or rewriting an email,
+   provide a suitable SUBJECT and BODY.
+6. If the task is summarizing an email,
+   provide a short summary and important action items.
+7. If the task is generating a reply,
+   write only the appropriate reply.
 """
 
-    last_error = None
+    response = client.models.generate_content(
+        model=MODEL_NAME,
+        contents=prompt
+    )
 
-    for model in MODELS:
-        try:
+    if not response.text:
+        return "No response was generated."
 
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt
-            )
-
-            if response.text:
-                return response.text
-
-        except Exception as e:
-            last_error = e
-            continue
-
-    return f"""
-AI service is temporarily unavailable.
-
-Please try again after some time.
-
-Error:
-{last_error}
-"""
+    return response.text
 
 
-# --------------------------------
-# Header
-# --------------------------------
+# =========================================================
+# APP HEADER
+# =========================================================
+
 st.title("📧 AI Email Assistant")
 
 st.write(
-    "Generate, rewrite, summarize, and reply to emails using Generative AI."
+    "Generate, rewrite, summarize, and reply to emails "
+    "using Generative AI."
 )
 
 st.divider()
 
 
-# --------------------------------
-# Sidebar
-# --------------------------------
+# =========================================================
+# SIDEBAR
+# =========================================================
+
 st.sidebar.header("⚙️ Email Settings")
 
 task = st.sidebar.selectbox(
@@ -136,68 +148,97 @@ length = st.sidebar.selectbox(
 )
 
 
-# --------------------------------
-# User Input
-# --------------------------------
+# =========================================================
+# MAIN INPUT
+# =========================================================
+
 st.subheader("📝 Email Content")
 
 email_text = st.text_area(
     "Enter your email request or email content:",
     height=220,
     placeholder=(
-        "Example: I attended an interview yesterday "
-        "and want to ask HR about the result and next steps."
+        "Example:\n"
+        "I attended an interview yesterday for a Data Analyst "
+        "position. I want to ask HR about the interview result "
+        "and next steps."
     )
 )
 
 
-# --------------------------------
-# Generate Button
-# --------------------------------
-if st.button("✨ Generate with AI", type="primary"):
+# =========================================================
+# GENERATE BUTTON
+# =========================================================
+
+if st.button(
+    "✨ Generate with AI",
+    type="primary",
+    use_container_width=True
+):
 
     if not email_text.strip():
 
         st.warning(
-            "Please enter some email content first."
+            "Please enter your email content first."
         )
 
     else:
 
-        with st.spinner(
-            "AI is processing your request..."
-        ):
+        try:
 
-            result = email_ai(
-                task=task,
-                text=email_text,
-                tone=tone,
-                length=length
+            with st.spinner(
+                "🤖 AI is generating your email..."
+            ):
+
+                result = email_ai(
+                    task=task,
+                    email_text=email_text,
+                    tone=tone,
+                    length=length
+                )
+
+            st.success(
+                "✅ AI response generated successfully!"
             )
 
-        st.success(
-            "AI response generated successfully!"
-        )
+            st.subheader("🤖 AI Result")
 
-        st.subheader("🤖 AI Result")
+            st.text_area(
+                "Generated Content",
+                value=result,
+                height=400
+            )
 
-        st.text_area(
-            "Generated Content",
-            value=result,
-            height=350
-        )
+            st.download_button(
+                label="📥 Download Email",
+                data=result,
+                file_name="ai_generated_email.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
 
-        st.download_button(
-            label="📥 Download Email",
-            data=result,
-            file_name="ai_generated_email.txt",
-            mime="text/plain"
-        )
+        except Exception as e:
+
+            error_message = str(e)
+
+            st.error(
+                "❌ Gemini API request failed."
+            )
+
+            st.code(
+                error_message,
+                language="text"
+            )
+
+            st.info(
+                "Check your Streamlit Secrets and Gemini API key."
+            )
 
 
-# --------------------------------
-# Footer
-# --------------------------------
+# =========================================================
+# FOOTER
+# =========================================================
+
 st.divider()
 
 st.caption(
